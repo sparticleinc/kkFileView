@@ -12,7 +12,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.util.StopWatch;
 
 @SpringBootApplication
-@EnableScheduling
+//@EnableScheduling
 @ComponentScan(value = "cn.keking.*")
 public class ServerMain {
 
