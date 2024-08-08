@@ -1,0 +1,155 @@
+version: 2.1
+orbs:
+  aws-ecr: circleci/aws-ecr@7.0.0
+
+executors:
+  build-executor:
+    docker:
+      - image: cimg/openjdk:8.0.402
+  deploy-executor:
+    machine:
+      image: ubuntu-2004:current
+
+jobs:
+  # 构建java 程序
+  maven-build:
+    parameters:
+      profile:
+        type: string
+    working_directory: ~/repo
+    executor: build-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "pom.xml" }} # appends cache key with a hash of pom.xml file
+            - v1-dependencies- # fallback in case previous cache key is not found
+      - run: mvn package -B
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: v1-dependencies-{{ checksum "pom.xml" }}
+      - run:
+          name: save build
+          command: |
+            mkdir -p /tmp/workspace
+            cp server/target/kkFileView-4.4.0-beta.jar /tmp/workspace/kkFileView-4.4.0-beta.jar
+            cp Dockerfile /tmp/workspace/Dockerfile
+      - persist_to_workspace:
+          # Must be an absolute path, or relative path from working_directory. This is a directory on the container which is
+          # taken to be the root directory of the workspace.
+          root: /tmp/workspace
+          # Must be relative path from root
+          paths:
+            - kkFileView-4.4.0-beta.jar
+            - Dockerfile
+  build-and-push-v2:
+    executor: deploy-executor
+    resource_class: medium
+    parameters:
+      docker-tag:
+        type: string
+    working_directory: /tmp/workspace
+    steps:
+      - attach_workspace:
+          # Must be absolute path or relative path from working_directory
+          at: /tmp/workspace
+      - aws-ecr/build-and-push-image:
+          checkout: false
+          account-url: AWS_ECR_ACCOUNT_URL
+          aws-access-key-id: AWS_ACCESS_KEY_ID
+          aws-secret-access-key: AWS_SECRET_ACCESS_KEY
+          create-repo: false
+          dockerfile: Dockerfile
+          path: .
+          region: AWS_REGION
+          repo: kkFileView
+          tag: "<<parameters.docker-tag>>${CIRCLE_SHA1}"
+  deploy:
+    executor: deploy-executor
+    resource_class: medium
+    parameters:
+      docker-tag:
+        type: string
+      path:
+        type: string
+      deploy-name:
+        type: string
+      deploy-namespace:
+        type: string
+    steps:
+      # - add_ssh_keys:
+      - run:
+          name: kubectl apply
+          command: |
+            CMD='/home/ubuntu/cluster/deploy-v3.sh <<parameters.path>> <<parameters.docker-tag>>'${CIRCLE_SHA1}' <<parameters.deploy-name>> <<parameters.deploy-namespace>>'
+            echo $CMD
+            ssh ${USER_NAME}@${HOST_NAME} ${CMD}
+
+workflows:
+  kkfileview-ci:
+    jobs:
+      - maven-build:
+          name: maven-build-dev
+          profile: dev
+          filters:
+            branches:
+              only:
+                - master
+      - maven-build:
+          name: maven-build-prod
+          profile: prod
+          filters:
+            branches:
+              only:
+                - /^[0-9]*.wk[0-9]*$/
+      - build-and-push-v2:
+          name: dev-build-and-push
+          docker-tag: dev
+          context:
+            - ecr-new
+          filters:
+            branches:
+              only:
+                - master
+          requires:
+            - maven-build-dev # only deploy once build job has completed
+      - build-and-push-v2:
+          name: prod-build-and-push
+          docker-tag: ""
+          context:
+            - ecr-new
+          filters:
+            branches:
+              only:
+                - /^[0-9]*.wk[0-9]*$/
+          requires:
+            - maven-build-prod # only deploy once build job has completed
+      - deploy:
+          name: dev-deploy
+          docker-tag: "dev"
+          path: "/home/ubuntu/cluster/web-app-test/kkfileview/deploy.yaml"
+          deploy-name: kkfileview
+          deploy-namespace: web-app-test
+          context:
+            - ecr-new
+          filters:
+            branches:
+              only:
+                - master
+          requires:
+            - dev-build-and-push
+      - deploy:
+          name: prod-deploy
+          docker-tag: ""
+          path: "/home/ubuntu/cluster/web-app/kkfileview/deploy.yaml"
+          deploy-name: kkfileview
+          deploy-namespace: web-app
+          context:
+            - ecr-new
+          filters:
+            branches:
+              only:
+                - /^[0-9]*.wk[0-9]*$/
+          requires:
+            - prod-build-and-push

@@ -65,7 +65,7 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-jetty</artifactId>
+            <artifactId>spring-boot-starter-undertow</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -344,14 +344,6 @@
                     <groupId>com.bench.runtime</groupId>
                     <artifactId>bench-runtime-springboot</artifactId>
                 </exclusion>
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-logging</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>ch.qos.logback</groupId>
-                    <artifactId>logback-classic</artifactId>
-                </exclusion>
             </exclusions>
         </dependency>
 
@@ -394,7 +386,8 @@
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
                     <descriptors>
-                        <descriptor>src/main/assembly/dist-win32.xml</descriptor>
+                        <!--需要打Windows的包再使用这个-->
+                        <!--<descriptor>src/main/assembly/dist-win32.xml</descriptor>-->
                         <descriptor>src/main/assembly/dist-linux.xml</descriptor>
                     </descriptors>
                 </configuration>
