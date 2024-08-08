@@ -33,7 +33,7 @@ jobs:
           name: save build
           command: |
             mkdir -p /tmp/workspace
-            cp server/target/kkFileView-4.4.0-beta.jar /tmp/workspace/kkFileView-4.4.0-beta.jar
+            cp server/target/kkFileView-4.4.0-beta.tar.gz /tmp/workspace/kkFileView-4.4.0-beta.tar.gz
             cp Dockerfile /tmp/workspace/Dockerfile
       - persist_to_workspace:
           # Must be an absolute path, or relative path from working_directory. This is a directory on the container which is
@@ -41,7 +41,7 @@ jobs:
           root: /tmp/workspace
           # Must be relative path from root
           paths:
-            - kkFileView-4.4.0-beta.jar
+            - kkFileView-4.4.0-beta.tar.gz
             - Dockerfile
   build-and-push-v2:
     executor: deploy-executor
